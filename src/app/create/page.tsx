@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { BookOpen, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function CreatePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
@@ -23,26 +24,32 @@ export default function CreatePage() {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (!content.trim()) {
+      setError('Story content is required');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('stories')
         .insert([
           {
             creator_id: user.id,
-            title: title || 'Untitled Story',
-            content,
-            ip_proof_timestamp: new Date().toISOString(),
+            title: title.trim() || 'Untitled Story',
+            content: content.trim(),
           },
         ])
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
       router.push(`/story/${data.id}`);
     } catch (err: any) {
-      alert('Error publishing story: ' + err.message);
+      setError(err.message || 'Error publishing story');
     } finally {
       setLoading(false);
     }
@@ -68,27 +75,32 @@ export default function CreatePage() {
       {/* Editor */}
       <div className="container py-8 px-4 max-w-4xl">
         <form onSubmit={handlePublish} className="space-y-6">
-          {/* Title Input */}
+          {/* Title Input (Optional) */}
           <div>
-            <label className="block text-text-secondary text-sm mb-2">Story Title</label>
+            <label className="block text-text-secondary text-sm mb-2">
+              Story Title <span className="text-text-secondary">(optional)</span>
+            </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter story title..."
+              placeholder="Enter story title... (leave blank for 'Untitled Story')"
               className="w-full px-4 py-3 bg-slate border border-grey text-text-primary placeholder-text-secondary focus:border-accent focus:outline-none transition text-lg font-serif"
             />
           </div>
 
-          {/* Content Input */}
+          {/* Content Input (Required) */}
           <div>
-            <label className="block text-text-secondary text-sm mb-2">Story Content</label>
+            <label className="block text-text-secondary text-sm mb-2">
+              Story Content <span className="text-accent">*</span>
+            </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Write your story here..."
+              placeholder="Write your story here... (required)"
               rows={20}
               className="w-full px-4 py-3 bg-slate border border-grey text-text-primary placeholder-text-secondary focus:border-accent focus:outline-none transition font-sans resize-none"
+              required
             />
           </div>
 
@@ -98,6 +110,13 @@ export default function CreatePage() {
               Words: {content.split(/\s+/).filter(w => w.length > 0).length}
             </p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-900 text-red-200 p-3 rounded text-sm">
+              {error}
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="flex gap-4 pt-4 border-t border-grey">
