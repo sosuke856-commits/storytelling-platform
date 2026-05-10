@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import ProofOfOwnership from '@/components/ProofOfOwnership';
 import WriterRoom from '@/components/WriterRoom';
-import { BookOpen, ArrowLeft, Maximize2, Minimize2 } from 'lucide-react';
+import { Menu, X, BookOpen } from 'lucide-react';
 
 interface Story {
   id: string;
@@ -16,10 +16,8 @@ interface Story {
   ip_proof_timestamp: string;
 }
 
-interface User {
-  id: string;
+interface Creator {
   username: string;
-  email: string;
 }
 
 export default function StoryPage() {
@@ -28,33 +26,23 @@ export default function StoryPage() {
   const storyId = params.id as string;
 
   const [story, setStory] = useState<Story | null>(null);
-  const [creator, setCreator] = useState<User | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [creator, setCreator] = useState<Creator | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [writerRoomOpen, setWriterRoomOpen] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  const [writerRoomOpen, setWriterRoomOpen] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setWriterRoomOpen(false);
-      }
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
     };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    fetchUser();
   }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchStory = async () => {
       try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        setCurrentUser(user);
-
-        // Get story
+        // Fetch story
         const { data: storyData, error: storyError } = await supabase
           .from('stories')
           .select('*')
@@ -64,79 +52,72 @@ export default function StoryPage() {
         if (storyError) throw storyError;
         setStory(storyData);
 
-        // Get creator info
+        // Fetch creator
         const { data: creatorData, error: creatorError } = await supabase
           .from('users')
-          .select('*')
+          .select('username')
           .eq('id', storyData.creator_id)
           .single();
 
         if (creatorError) throw creatorError;
         setCreator(creatorData);
       } catch (err) {
-        console.error('Failed to fetch story:', err);
+        console.error('Error fetching story:', err);
+        router.push('/');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [storyId]);
+    if (storyId) {
+      fetchStory();
+    }
+  }, [storyId, router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-void flex items-center justify-center">
-        <p className="text-text-secondary">Loading story...</p>
+      <div className="min-h-screen bg-void text-text-primary flex items-center justify-center">
+        <p>Loading story...</p>
       </div>
     );
   }
 
   if (!story || !creator) {
     return (
-      <div className="min-h-screen bg-void flex items-center justify-center">
-        <p className="text-text-secondary">Story not found.</p>
+      <div className="min-h-screen bg-void text-text-primary flex items-center justify-center">
+        <p>Story not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-void text-text-primary flex flex-col">
-      {/* Header */}
-      <header className="border-b border-grey bg-slate sticky top-0 z-10">
-        <div className="container py-4 px-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="p-2 hover:bg-grey transition"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <BookOpen className="w-6 h-6 text-accent" />
-            <h1 className="text-xl font-serif font-bold truncate">{story.title}</h1>
-          </div>
-          {isMobile && (
+    <div className="min-h-screen bg-void text-text-primary flex">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="border-b border-grey bg-slate sticky top-0 z-40">
+          <div className="container py-4 px-4 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.push('/')}
+                className="text-accent hover:text-opacity-80 transition"
+              >
+                <BookOpen className="w-6 h-6" />
+              </button>
+              <h1 className="text-xl font-serif font-bold truncate">{story.title}</h1>
+            </div>
             <button
               onClick={() => setWriterRoomOpen(!writerRoomOpen)}
-              className="p-2 hover:bg-grey transition"
-              title={writerRoomOpen ? 'Close Writer\'s Room' : 'Open Writer\'s Room'}
+              className="md:hidden text-accent hover:text-opacity-80 transition"
             >
-              {writerRoomOpen ? (
-                <Minimize2 className="w-5 h-5" />
-              ) : (
-                <Maximize2 className="w-5 h-5" />
-              )}
+              {writerRoomOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
-          )}
-        </div>
-      </header>
+          </div>
+        </header>
 
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Story Canvas */}
-        <main className={`flex-1 overflow-y-auto ${
-          isMobile && writerRoomOpen ? 'hidden' : ''
-        }`}>
-          <div className="max-w-3xl mx-auto px-4 py-12 md:py-16">
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          <article className="container py-12 px-4 max-w-3xl mx-auto">
             {/* Proof of Ownership */}
             <div className="mb-8">
               <ProofOfOwnership
@@ -146,52 +127,59 @@ export default function StoryPage() {
             </div>
 
             {/* Story Content */}
-            <article className="prose prose-invert max-w-none">
-              <h1 className="text-4xl font-serif font-bold mb-4 text-text-primary">
-                {story.title}
-              </h1>
-              <div className="flex gap-4 mb-12 text-text-secondary text-sm">
-                <span>By <strong className="text-accent">{creator.username}</strong></span>
-                <span>Published {new Date(story.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="text-text-primary text-lg leading-relaxed whitespace-pre-wrap font-sans">
+            <div className="prose prose-invert max-w-none mb-16">
+              <p className="text-text-primary whitespace-pre-wrap leading-relaxed text-lg">
                 {story.content}
-              </div>
-            </article>
-
-            {/* Legal Footer */}
-            <div className="mt-16 pt-8 border-t border-grey">
-              <p className="text-text-secondary text-xs">
-                Legal Notice: 100% IP ownership resides with the creator{' '}
-                <span className="text-accent font-semibold">{creator.username}</span> as of{' '}
-                <span className="text-accent font-semibold">
-                  {new Date(story.ip_proof_timestamp).toLocaleString()}
-                </span>
-                .
               </p>
             </div>
-          </div>
-        </main>
 
-        {/* Writer's Room Sidebar */}
-        {currentUser && (
-          <aside
-            className={`${
-              isMobile
-                ? writerRoomOpen
-                  ? 'fixed inset-0 z-50 w-full h-full md:w-80'
-                  : 'hidden'
-                : 'w-80'
-            } flex flex-col`}
-          >
+            {/* Legal Notice Footer */}
+            <div className="border-t border-grey pt-8 mt-16">
+              <div className="bg-slate p-4 rounded text-sm text-text-secondary italic">
+                <p>
+                  <strong>Legal Notice:</strong> 100% intellectual property ownership resides with the creator{' '}
+                  <span className="text-accent font-semibold">{creator.username}</span> as of{' '}
+                  <span className="text-accent font-semibold">
+                    {new Date(story.ip_proof_timestamp).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                  . Unauthorized reproduction or distribution is prohibited.
+                </p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      {/* Writer's Room Sidebar */}
+      {user && (
+        <div
+          className={`${
+            writerRoomOpen ? 'fixed inset-0 z-30 md:relative md:z-auto' : 'hidden'
+          } md:flex md:w-96 md:h-screen md:flex-col`}
+        >
+          {writerRoomOpen && (
+            <div
+              className="absolute inset-0 bg-black bg-opacity-50 md:hidden"
+              onClick={() => setWriterRoomOpen(false)}
+            />
+          )}
+          <div className="relative z-10 w-full h-full md:h-auto md:flex-1 flex flex-col">
             <WriterRoom
               storyId={storyId}
-              currentUserId={currentUser.id}
-              currentUsername={creator.id === currentUser.id ? creator.username : ''}
+              userId={user.id}
+              username={creator.username}
+              isOpen={true}
+              onClose={() => setWriterRoomOpen(false)}
             />
-          </aside>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

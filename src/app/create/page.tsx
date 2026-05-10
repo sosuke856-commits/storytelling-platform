@@ -5,55 +5,44 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { BookOpen, ArrowLeft } from 'lucide-react';
 
-export default function CreateStoryPage() {
+export default function CreatePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-      } else {
-        setUser(user);
-      }
+      if (!user) router.push('/auth');
+      setUser(user);
     };
     fetchUser();
   }, [router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
-    if (!title.trim() || !content.trim()) {
-      setError('Title and content are required.');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const { data, error: insertError } = await supabase
+      const { data, error } = await supabase
         .from('stories')
         .insert([
           {
             creator_id: user.id,
-            title: title.trim(),
-            content: content.trim(),
+            title: title || 'Untitled Story',
+            content,
+            ip_proof_timestamp: new Date().toISOString(),
           },
         ])
         .select()
         .single();
 
-      if (insertError) throw insertError;
-
+      if (error) throw error;
       router.push(`/story/${data.id}`);
     } catch (err: any) {
-      setError(err.message || 'Failed to create story');
+      alert('Error publishing story: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -63,80 +52,72 @@ export default function CreateStoryPage() {
     <div className="min-h-screen bg-void text-text-primary">
       {/* Header */}
       <header className="border-b border-grey bg-slate">
-        <div className="container py-6 px-4 flex items-center gap-4">
+        <div className="container py-6 px-4 flex justify-between items-center">
           <button
             onClick={() => router.back()}
-            className="p-2 hover:bg-grey transition"
+            className="flex items-center gap-2 text-accent hover:text-opacity-80 transition"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5" />
+            Back
           </button>
-          <BookOpen className="w-8 h-8 text-accent" />
-          <h1 className="text-2xl font-serif font-bold">Create New Story</h1>
+          <h1 className="text-2xl font-serif font-bold">New Story</h1>
+          <div className="w-12"></div>
         </div>
       </header>
 
       {/* Editor */}
-      <main className="py-12 px-4">
-        <div className="container max-w-4xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Title Input */}
-            <div>
-              <label className="block text-text-secondary text-sm mb-3 font-semibold">Story Title</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter your story title..."
-                className="w-full px-4 py-3 bg-slate border border-grey text-text-primary text-xl font-serif focus:border-accent focus:outline-none transition"
-                required
-              />
-            </div>
+      <div className="container py-8 px-4 max-w-4xl">
+        <form onSubmit={handlePublish} className="space-y-6">
+          {/* Title Input */}
+          <div>
+            <label className="block text-text-secondary text-sm mb-2">Story Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter story title..."
+              className="w-full px-4 py-3 bg-slate border border-grey text-text-primary placeholder-text-secondary focus:border-accent focus:outline-none transition text-lg font-serif"
+            />
+          </div>
 
-            {/* Content Textarea */}
-            <div>
-              <label className="block text-text-secondary text-sm mb-3 font-semibold">Story Content</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Begin your story here. Write freely, collaborate in real-time with other writers..."
-                className="w-full px-4 py-3 bg-slate border border-grey text-text-primary focus:border-accent focus:outline-none transition font-sans resize-none"
-                rows={16}
-                required
-              />
-            </div>
+          {/* Content Input */}
+          <div>
+            <label className="block text-text-secondary text-sm mb-2">Story Content</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Write your story here..."
+              rows={20}
+              className="w-full px-4 py-3 bg-slate border border-grey text-text-primary placeholder-text-secondary focus:border-accent focus:outline-none transition font-sans resize-none"
+            />
+          </div>
 
-            {/* Word Count */}
-            <div className="text-right text-text-secondary text-sm">
-              {content.split(/\s+/).filter(w => w).length} words
-            </div>
+          {/* Word Count */}
+          <div className="flex justify-between items-center">
+            <p className="text-text-secondary text-sm">
+              Words: {content.split(/\s+/).filter(w => w.length > 0).length}
+            </p>
+          </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-grey p-4 text-text-secondary text-sm border border-red-500 rounded">
-                {error}
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-3 bg-accent text-void font-semibold hover:bg-opacity-90 transition disabled:opacity-50"
-              >
-                {loading ? 'Publishing...' : 'Publish Story'}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="flex-1 py-3 border border-accent text-accent hover:bg-accent hover:text-void transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
+          {/* Buttons */}
+          <div className="flex gap-4 pt-4 border-t border-grey">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="px-6 py-3 border border-accent text-accent hover:bg-accent hover:text-void transition font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !content.trim()}
+              className="px-6 py-3 bg-accent text-void font-semibold hover:bg-opacity-90 transition disabled:opacity-50 ml-auto"
+            >
+              {loading ? 'Publishing...' : 'Publish Story'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
